@@ -152,6 +152,7 @@
     /* ERROR BANNER */
     .error-banner { background: #fdf0f0; border: 1px solid #f5c6cb; color: var(--error); font-size: 13px; padding: 12px 16px; border-radius: 8px; margin-top: 16px; display: none; line-height: 1.5; }
   </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
 
@@ -376,7 +377,7 @@
 <script>
 // ── CONFIG: paste your Apps Script URL here after deploying ──
 // This is set once by you when setting up. Clients never see this.
-const SHEET_URL = "https://script.google.com/macros/s/AKfycbyrHhIb-CCxwR66lh0wmzovIsQfA5h_kW8CLOkkzzaizFXHEyhSZSDLBWJ5G9H6-77j/exec";
+const SHEET_URL = "YOUR_APPS_SCRIPT_URL_HERE";
 
 // ── SIGNATURE ──
 const canvas = document.getElementById("sigCanvas");
@@ -430,6 +431,66 @@ function fmtDate(val) {
   if (!val) return "";
   const d = new Date(val + "T00:00:00");
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+
+// ── POPULATE SUMMARY DIV FOR SCREENSHOT ──
+function populateSummary(data, sigDataUrl) {
+  function field(l, v) {
+    return "<div><div style=\"font-size:9px;color:#7a7570;text-transform:uppercase;letter-spacing:.07em;margin-bottom:2px;\">" + l + "</div><div style=\"font-size:12px;\">" + (v||"—") + "</div></div>";
+  }
+  document.getElementById("summaryLogo").src = document.getElementById("headerLogo").src;
+  document.getElementById("sumSubmittedAt").textContent = "Submitted: " + data["Submitted At"];
+  document.getElementById("sumPersonal").innerHTML =
+    field("Name", data["Name"]) + field("Age", data["Age"]) +
+    field("Phone", data["Phone"]) + field("Email", data["Email"]) +
+    field("Profession", data["Profession"]) + field("Due Date", data["Delivery Due Date"]) +
+    field("Pregnancy Week", data["Pregnancy Week"]) + field("Address", data["Address"]);
+  var hist = field("First Pregnancy", data["First Pregnancy"]) + field("HC Release Form", data["HC Release Form"]);
+  if (data["First Pregnancy"] === "No") {
+    hist += field("Prev Pregnancies", data["No. of Prev Pregnancies"]) +
+            field("Vaginal Births", data["Vaginal Births"]) +
+            field("Caesarean Births", data["Caesarean Births"]) +
+            field("Miscarriages", data["Miscarriages/Abortions"]);
+    if (data["Prev Complications"]) hist += field("Complications", data["Prev Complications"]);
+  }
+  document.getElementById("sumHistory").innerHTML = hist;
+  document.getElementById("sumHealth").textContent = data["Health / Conditions"] || "None mentioned";
+  document.getElementById("sumEmergency").innerHTML =
+    field("EC Name", data["EC Name"]) + field("EC Phone", data["EC Phone"]) +
+    field("Relationship", data["EC Relationship"]) + field("Physician", data["Physician Name"]) +
+    field("Physician Phone", data["Physician Phone"]);
+  document.getElementById("sumSigDate").textContent = data["Signature Date"];
+  document.getElementById("sumSigImage").src = sigDataUrl || "";
+}
+
+async function captureAndUploadForm(data, sigDataUrl, sheetUrl) {
+  try {
+    populateSummary(data, sigDataUrl);
+    const el = document.getElementById("formSummary");
+    el.style.display = "block";
+    // Wait for images to load
+    await new Promise(r => setTimeout(r, 500));
+    const canvas = await html2canvas(el, {
+      scale: 1.5,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: "#ffffff",
+      width: 800,
+      windowWidth: 900
+    });
+    el.style.display = "none";
+    const imageData = canvas.toDataURL("image/jpeg", 0.85);
+    // Upload to Google Drive via Apps Script
+    await fetch(sheetUrl, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "uploadImage", imageData: imageData, fileName: data["Name"] + "_" + data["Submitted At"].replace(/[/,:]/g, "-") + ".jpg" })
+    });
+  } catch(err) {
+    console.warn("Form capture failed:", err);
+  }
 }
 
 // ── FORM SUBMIT ──
@@ -487,12 +548,19 @@ document.getElementById("regForm").addEventListener("submit", async function(e) 
   };
 
   try {
+    const sigDataUrl = getSigDataUrl();
+
+    // 1. Send form data to Google Sheets
     await fetch(SHEET_URL, {
       method: "POST",
       mode: "no-cors",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify(data)
     });
+
+    // 2. Capture full form as image and upload to Google Drive
+    await captureAndUploadForm(data, sigDataUrl, SHEET_URL);
+
     // Show success
     document.getElementById("regForm").style.display = "none";
     document.getElementById("successScreen").style.display = "block";
@@ -510,5 +578,35 @@ document.querySelectorAll("input, select, textarea").forEach(el => {
   el.addEventListener("input", () => el.classList.remove("invalid"));
 });
 </script>
+
+<!-- Hidden summary for screenshot - shown only during capture -->
+<div id="formSummary" style="display:none;position:fixed;top:0;left:0;width:800px;background:#fff;padding:40px;font-family:DM Sans,sans-serif;font-size:13px;color:#2c2c2c;z-index:99999;">
+  <div style="display:flex;align-items:center;margin-bottom:20px;">
+    <img id="summaryLogo" style="height:52px;width:auto;" alt="Samatvalife"/>
+  </div>
+  <div style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:600;color:#4e7153;margin-bottom:4px;">Pre-natal Yoga – Registration</div>
+  <div style="font-size:11px;color:#7a7570;margin-bottom:20px;" id="sumSubmittedAt"></div>
+
+  <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#7a9e7e;border-bottom:1px solid #d8d0c4;padding-bottom:4px;margin-bottom:10px;">Personal Information</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 20px;margin-bottom:16px;" id="sumPersonal"></div>
+
+  <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#7a9e7e;border-bottom:1px solid #d8d0c4;padding-bottom:4px;margin-bottom:10px;">Pregnancy History</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 20px;margin-bottom:16px;" id="sumHistory"></div>
+
+  <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#7a9e7e;border-bottom:1px solid #d8d0c4;padding-bottom:4px;margin-bottom:10px;">Health / Conditions</div>
+  <div style="background:#faf8f3;border:1px solid #d8d0c4;border-radius:5px;padding:8px 11px;font-size:12px;line-height:1.6;margin-bottom:16px;" id="sumHealth"></div>
+
+  <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#7a9e7e;border-bottom:1px solid #d8d0c4;padding-bottom:4px;margin-bottom:10px;">Emergency Contact</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 20px;margin-bottom:16px;" id="sumEmergency"></div>
+
+  <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#7a9e7e;border-bottom:1px solid #d8d0c4;padding-bottom:4px;margin-bottom:10px;">Waiver &amp; Signature</div>
+  <div style="font-size:11px;color:#7a7570;background:#f0ebe0;padding:8px 10px;border-radius:5px;margin-bottom:10px;">Participant agreed to the full liability waiver. Date: <span id="sumSigDate"></span></div>
+  <div>
+    <div style="font-size:10px;color:#7a7570;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px;">Customer Signature</div>
+    <div style="border:1px solid #d8d0c4;border-radius:5px;padding:6px;display:inline-block;background:#fff;">
+      <img id="sumSigImage" style="max-width:250px;max-height:90px;display:block;" alt="Signature"/>
+    </div>
+  </div>
+</div>
 </body>
 </html>
