@@ -483,14 +483,14 @@ document.getElementById("regForm").addEventListener("submit", async function(e) 
     "Physician Phone":         document.getElementById("physPhone").value.trim(),
     "Signature Date":          fmtDate(document.getElementById("signDate").value),
     "Agreed to Waiver":        "Yes",
-    "Signature":               getSigDataUrl()
+    "Signature":               getSigDataUrl() || "No signature provided"
   };
 
   try {
     await fetch(SHEET_URL, {
       method: "POST",
       mode: "no-cors",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "text/plain" },
       body: JSON.stringify(data)
     });
     // Show success
