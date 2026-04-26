@@ -376,7 +376,7 @@
 <script>
 // ── CONFIG: paste your Apps Script URL here after deploying ──
 // This is set once by you when setting up. Clients never see this.
-const SHEET_URL = "https://script.google.com/macros/s/AKfycbyNpJsAlGeOmzs4pAJW9aQ0-g4aZNXzoUB13wm8gOLs2Ajxip_E5D1G-7qlLhl4WtiA/exec";
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbyrHhIb-CCxwR66lh0wmzovIsQfA5h_kW8CLOkkzzaizFXHEyhSZSDLBWJ5G9H6-77j/exec";
 
 // ── SIGNATURE ──
 const canvas = document.getElementById("sigCanvas");
@@ -408,6 +408,7 @@ canvas.addEventListener("touchstart", e => { e.preventDefault(); drawing = true;
 canvas.addEventListener("touchmove",  e => { e.preventDefault(); if (!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.strokeStyle = "#2c2c2c"; ctx.lineWidth = 1.8; ctx.lineCap = "round"; ctx.stroke(); hasSig = true; }, { passive: false });
 canvas.addEventListener("touchend",   () => drawing = false);
 function clearSig() { const r = canvas.getBoundingClientRect(); ctx.clearRect(0, 0, r.width, 150); hasSig = false; }
+function getSigDataUrl() { return hasSig ? canvas.toDataURL("image/png") : ""; }
 
 // ── CONDITIONAL: show prev pregnancy fields ──
 document.querySelectorAll("input[name=firstPreg]").forEach(r => {
@@ -423,6 +424,13 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("signDate").min = today;
   document.getElementById("signDate").value = today;
 });
+
+// ── DATE FORMATTER ──
+function fmtDate(val) {
+  if (!val) return "";
+  const d = new Date(val + "T00:00:00");
+  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
 
 // ── FORM SUBMIT ──
 document.getElementById("regForm").addEventListener("submit", async function(e) {
@@ -455,7 +463,7 @@ document.getElementById("regForm").addEventListener("submit", async function(e) 
     "Name":                    document.getElementById("name").value.trim(),
     "Age":                     document.getElementById("age").value.trim(),
     "Address":                 document.getElementById("address").value.trim(),
-    "Delivery Due Date":       document.getElementById("dueDate").value,
+    "Delivery Due Date":       fmtDate(document.getElementById("dueDate").value),
     "Pregnancy Week":          document.getElementById("pregWeek").value.trim(),
     "Phone":                   document.getElementById("phone").value.trim(),
     "Email":                   document.getElementById("email").value.trim(),
@@ -473,9 +481,9 @@ document.getElementById("regForm").addEventListener("submit", async function(e) 
     "EC Relationship":         document.getElementById("ecRelation").value,
     "Physician Name":          document.getElementById("physName").value.trim(),
     "Physician Phone":         document.getElementById("physPhone").value.trim(),
-    "Signature Date":          document.getElementById("signDate").value,
+    "Signature Date":          fmtDate(document.getElementById("signDate").value),
     "Agreed to Waiver":        "Yes",
-    "Signature":               "[Captured — view in Admin Dashboard]"
+    "Signature":               getSigDataUrl()
   };
 
   try {
